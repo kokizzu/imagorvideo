@@ -6,7 +6,7 @@ FROM golang:${GOLANG_VERSION}-bookworm AS golang-base
 
 FROM ${BASE_IMAGE} AS native-base
 
-# Stage 1: Build application using imagor-base ffmpeg+magick dev image
+# Stage 1: Build application using the selected imagor-base ffmpeg dev image
 FROM ${DEV_BASE_IMAGE} AS builder
 
 COPY --from=golang-base /usr/local/go /usr/local/go

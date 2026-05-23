@@ -18,6 +18,16 @@ This also aims to be a reference project demonstrating imagor extension.
 docker run -p 8000:8000 shumc/imagorvideo -imagor-unsafe
 ```
 
+### Docker Variants
+
+imagorvideo publishes three Docker image families:
+
+- `ghcr.io/cshum/imagorvideo`: default `ffmpeg` variant. This is the recommended baseline and matches the default `imagorvideo` Dockerfile.
+- `ghcr.io/cshum/imagorvideo-mozjpeg`: `mozjpeg-ffmpeg` variant. Use this when you want the MozJPEG-backed JPEG stack in addition to video thumbnail support.
+- `ghcr.io/cshum/imagorvideo-magick`: `magick-ffmpeg` variant. Use this when you need ImageMagick-backed formats or operations on top of the ffmpeg pipeline.
+
+All three variants keep ffmpeg support. The difference is the underlying imagor native image stack used after frame extraction.
+
 Original:
 ```
 http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4
