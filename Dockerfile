@@ -1,5 +1,5 @@
-ARG GOLANG_VERSION=1.26.1
-ARG BASE_IMAGE=ghcr.io/cshum/imagor-base:vips8.18.2-r7-magick-ffmpeg
+ARG GOLANG_VERSION=1.26.3
+ARG BASE_IMAGE=ghcr.io/cshum/imagor-base:vips8.18.2-r9-magick-ffmpeg
 ARG DEV_BASE_IMAGE=${BASE_IMAGE}-dev
 
 FROM golang:${GOLANG_VERSION}-bookworm AS golang-base
@@ -27,7 +27,7 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o /opt/imagor/bin/imagorvideo ./cmd/imagorvideo/main.go
+RUN go build -ldflags "-s -w" -o /opt/imagor/bin/imagorvideo ./cmd/imagorvideo/main.go
 
 # Stage 2: Runtime image
 FROM native-base AS runtime
@@ -51,7 +51,7 @@ ENV MALLOC_ARENA_MAX=2
 ENV LD_PRELOAD=/usr/local/lib/libjemalloc.so
 ENV XDG_CACHE_HOME=/tmp
 
-ENV PORT 8000
+ENV PORT=8000
 
 # use unprivileged user
 USER nobody
