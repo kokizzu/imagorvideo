@@ -185,3 +185,70 @@ type readCloser struct {
 	io.Reader
 	io.Closer
 }
+
+func TestAudioWithCover(t *testing.T) {
+	path := baseDir + "with_cover.mp3"
+	reader, err := os.Open(path)
+	require.NoError(t, err)
+	stats, err := os.Stat(path)
+	require.NoError(t, err)
+
+	av, err := LoadAVContext(reader, stats.Size())
+	require.NoError(t, err)
+	defer av.Close()
+
+	meta := av.Metadata()
+	require.True(t, meta.HasAudio)
+	require.True(t, meta.HasVideo)
+	require.Greater(t, meta.Width, 0)
+	require.Greater(t, meta.Height, 0)
+
+	require.NoError(t, av.SelectFrame(1))
+	buf, err := av.Export(4)
+	require.NoError(t, err)
+	require.NotEmpty(t, buf)
+
+	img, err := vips.NewImageFromMemory(buf, meta.Width, meta.Height, 4)
+	require.NoError(t, err)
+	defer img.Close()
+	_, err = img.JpegsaveBuffer(nil)
+	require.NoError(t, err)
+}
+
+func TestAudioOnlyNoSeekEdgeCases(t *testing.T) {
+	path := baseDir + "no_cover.mp3"
+	file, err := os.Open(path)
+	require.NoError(t, err)
+	stats, err := os.Stat(path)
+	require.NoError(t, err)
+
+	reader := &readCloser{
+		Reader: file,
+		Closer: file,
+	}
+
+	av, err := LoadAVContext(reader, stats.Size())
+	require.NoError(t, err)
+	defer av.Close()
+
+	require.Nil(t, av.seeker)
+
+	meta := av.Metadata()
+	require.True(t, meta.HasAudio)
+	require.False(t, meta.HasVideo)
+	require.Zero(t, meta.Width)
+	require.Zero(t, meta.Height)
+
+	assert.Equal(t, ErrDecoderNotFound, av.ProcessFrames(-1))
+	assert.Equal(t, ErrDecoderNotFound, av.SelectFrame(1))
+	assert.Equal(t, ErrDecoderNotFound, av.SelectDuration(time.Second))
+	assert.Equal(t, ErrDecoderNotFound, av.SelectPosition(0.5))
+	assert.Equal(t, ErrDecoderNotFound, av.SeekDuration(time.Second))
+	assert.Equal(t, ErrDecoderNotFound, av.SeekPosition(0.5))
+
+	buf, err := av.Export(4)
+	require.Empty(t, buf)
+	assert.Equal(t, ErrDecoderNotFound, err)
+
+	av.Close()
+}
