@@ -3,16 +3,17 @@ package ffmpeg
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cshum/vipsgen/vips"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	"io"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/cshum/vipsgen/vips"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 var files = []string{
