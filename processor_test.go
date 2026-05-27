@@ -1,6 +1,7 @@
 package imagorvideo
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -11,7 +12,9 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/cshum/imagor"
 	"github.com/cshum/imagor/imagorpath"
@@ -210,6 +213,85 @@ func TestProcessorRawBypass(t *testing.T) {
 			assert.Equal(t, blob, out, "forwarded blob should be the original blob unchanged")
 		})
 	}
+}
+
+type countingReaderStorage struct {
+	reads int
+	mu    sync.Mutex
+}
+
+func (s *countingReaderStorage) Get(r *http.Request, image string) (*imagor.Blob, error) {
+	return nil, imagor.ErrNotFound
+}
+
+func (s *countingReaderStorage) Stat(ctx context.Context, image string) (*imagor.Stat, error) {
+	return nil, imagor.ErrNotFound
+}
+
+func (s *countingReaderStorage) Put(ctx context.Context, image string, blob *imagor.Blob) error {
+	r, _, err := blob.NewReader()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	_, err = io.ReadAll(r)
+	s.mu.Lock()
+	s.reads++
+	s.mu.Unlock()
+	return err
+}
+
+func (s *countingReaderStorage) Delete(ctx context.Context, image string) error {
+	return nil
+}
+
+func (s *countingReaderStorage) Reads() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.reads
+}
+
+func TestVideoProcessorSourceSaveUsesSingleOpenWithReadSeeker(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(testDataDir, "everybody-betray-me.mkv"))
+	require.NoError(t, err)
+
+	var calls int
+	storage := &countingReaderStorage{}
+	app := imagor.New(
+		imagor.WithLoaders(loaderFunc(func(r *http.Request, image string) (*imagor.Blob, error) {
+			if image != "everybody-betray-me.mkv" {
+				return nil, imagor.ErrNotFound
+			}
+			return imagor.NewBlob(func() (io.ReadCloser, int64, error) {
+				calls++
+				return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
+			}), nil
+		})),
+		imagor.WithStorages(storage),
+		imagor.WithUnsafe(true),
+		imagor.WithProcessors(
+			NewProcessor(WithLogger(zap.NewNop())),
+			vipsprocessor.NewProcessor(vipsprocessor.WithDebug(true)),
+		),
+	)
+	require.NoError(t, app.Startup(context.Background()))
+	t.Cleanup(func() {
+		require.NoError(t, app.Shutdown(context.Background()))
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/unsafe/fit-in/100x100/everybody-betray-me.mkv", nil)
+	app.ServeHTTP(w, req)
+	time.Sleep(10 * time.Millisecond)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.NotEmpty(t, w.Body.Bytes())
+	assert.Equal(t, 1, calls, "video processing with source save should still share one source stream")
+	assert.Equal(t, 1, storage.Reads())
+
+	blob := imagor.NewBlobFromBytes(w.Body.Bytes())
+	assert.Contains(t, []string{"image/jpeg", "image/png", "image/webp", "image/gif"}, blob.ContentType())
+	assert.False(t, blob.IsEmpty())
 }
 
 type loaderFunc func(r *http.Request, image string) (blob *imagor.Blob, err error)
