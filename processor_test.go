@@ -45,6 +45,7 @@ func TestProcessor(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, v.Shutdown(context.Background()))
 	})
+	t.Run("source save uses single open with read seeker", runVideoProcessorSourceSaveUsesSingleOpenWithReadSeeker)
 	doGoldenTests(t, filepath.Join(testDataDir, "golden/result"), []test{
 		{name: "mkv", path: "fit-in/100x100/everybody-betray-me.mkv"},
 		{name: "mkv specific frame", path: "fit-in/100x100/filters:frame(3)/everybody-betray-me.mkv"},
@@ -251,7 +252,7 @@ func (s *countingReaderStorage) Reads() int {
 	return s.reads
 }
 
-func TestVideoProcessorSourceSaveUsesSingleOpenWithReadSeeker(t *testing.T) {
+func runVideoProcessorSourceSaveUsesSingleOpenWithReadSeeker(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(testDataDir, "everybody-betray-me.mkv"))
 	require.NoError(t, err)
 
